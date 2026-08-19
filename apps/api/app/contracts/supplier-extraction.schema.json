@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "supplier-extraction.schema.json",
+  "title": "Supplier Extraction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["legal_name", "category", "annual_value"],
+  "properties": {
+    "legal_name": {"type": "string", "minLength": 1},
+    "category": {"type": "string", "minLength": 1},
+    "annual_value": {"type": "integer", "minimum": 0}
+  }
+}

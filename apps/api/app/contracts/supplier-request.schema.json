@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "supplier-request.schema.json",
+  "title": "Supplier Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["supplier_name", "tax_id", "country"],
+  "properties": {
+    "supplier_name": {"type": "string", "minLength": 2},
+    "tax_id": {"type": "string", "minLength": 5},
+    "country": {"type": "string", "pattern": "^[A-Z]{2}$"}
+  }
+}
