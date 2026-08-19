@@ -7,7 +7,7 @@ The final repository turns the validated HTML prototype into a real application 
 ## Final stack
 
 - **Web:** Next.js 16.2.11, React 19.2, TypeScript, App Router
-- **API:** Python 3.13, FastAPI 0.140.7, SQLAlchemy 2.0.51
+- **API:** Python 3.13, FastAPI 0.141.1, SQLAlchemy 2.0.51
 - **Database:** PostgreSQL 18
 - **Message broker:** RabbitMQ 4.x, durable quorum queues + explicit DLQ
 - **Workflow definitions:** YAML + JSON Schema
