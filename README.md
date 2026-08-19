@@ -1,34 +1,34 @@
 # FlowPilot AI
 
-**FlowPilot AI** é uma plataforma de automação de workflows orientada a execução controlada, rastreabilidade e aprovação humana. O sistema combina definições declarativas em YAML, processamento assíncrono, etapas determinísticas, integração com IA estruturada, políticas de retry, DLQ e trilha completa de evidências.
+[English](README.md) | [Português](README.pt-BR.md)
 
-A arquitetura foi desenhada para manter decisões críticas sob controle da aplicação: a IA pode extrair, classificar e estruturar informações, mas não ignora contratos, não aprova etapas protegidas e não altera silenciosamente o estado de uma execução.
+**FlowPilot AI** is a workflow-automation platform designed around controlled execution, traceability and human approval. It combines declarative YAML definitions, asynchronous processing, deterministic steps, structured AI integration, retry policies, a DLQ and a complete evidence trail.
 
-## Visão geral
+The architecture keeps critical decisions under application control: AI can extract, classify and structure information, but it cannot bypass contracts, approve protected steps or silently mutate execution state.
 
-O FlowPilot organiza automações operacionais em workflows versionados e auditáveis. Cada execução percorre etapas explícitas, registra eventos e pode ser interrompida por validação, aprovação humana, falha de conector ou política de recuperação.
+## Overview
 
-Principais capacidades:
+Core capabilities include:
 
-- catálogo de workflows com definições YAML versionadas;
-- criação e atualização de workflows com validação de contrato;
-- disparo manual e por webhook idempotente;
-- validação de entrada antes da execução;
-- etapas determinísticas de transformação e decisão;
-- extração e classificação por IA com saída estruturada;
-- validação Pydantic antes de qualquer transição dependente de IA;
-- conectores desacoplados com política de retry;
-- gates de aprovação humana com bloqueio real da execução;
-- retomada segura após aprovação;
-- rejeição terminal com motivo registrado;
-- processamento assíncrono com RabbitMQ;
-- Dead Letter Queue com reprocessamento explícito;
-- criação de nova execução ao reprocessar itens da DLQ, preservando a original;
-- idempotência para triggers externos;
-- simulação controlada de falhas de conectores e de saída inválida de IA;
-- trilha de eventos por execução e auditoria global.
+- versioned YAML workflow definitions;
+- workflow creation and updates with contract validation;
+- manual and idempotent webhook triggers;
+- input validation before execution;
+- deterministic transformation and decision steps;
+- AI extraction and classification with structured output;
+- Pydantic validation before AI-dependent state transitions;
+- decoupled connectors with retry policies;
+- human-approval gates that actually block execution;
+- safe resume after approval;
+- terminal rejection with a recorded reason;
+- asynchronous processing with RabbitMQ;
+- Dead Letter Queue with explicit reprocessing;
+- creation of a new execution when reprocessing DLQ items while preserving the original run;
+- idempotency for external triggers;
+- controlled simulation of connector failures and invalid AI output;
+- per-run event history and global auditability.
 
-## Arquitetura
+## Architecture
 
 ```text
 Browser / Next.js
@@ -53,25 +53,23 @@ FastAPI API
              steps           AI        / retries
 ```
 
-A API é responsável por autorização, contratos, criação das execuções, decisões humanas e persistência de estado. O worker executa etapas assíncronas e publica evidências de cada tentativa. RabbitMQ desacopla a execução do ciclo HTTP e mantém a fila operacional explícita.
+The API owns authorization, contracts, run creation, human decisions and state persistence. The worker executes asynchronous steps and publishes evidence for each attempt. RabbitMQ decouples execution from the HTTP request lifecycle and keeps the operational queue explicit.
 
 ## Stack
 
-| Camada | Tecnologia |
+| Layer | Technology |
 |---|---|
 | Web | Next.js 16.3, React 19, TypeScript, App Router |
 | API | Python 3.13, FastAPI, SQLAlchemy 2 |
-| Banco | PostgreSQL 18 |
-| Mensageria | RabbitMQ 4, filas duráveis e DLQ |
+| Database | PostgreSQL 18 |
+| Messaging | RabbitMQ 4, durable queues and DLQ |
 | Workflows | YAML + JSON Schema Draft 2020-12 |
-| IA estruturada | Provider boundary + Pydantic |
-| Autenticação | JWT + RBAC server-side |
-| Ambiente local | Docker Compose |
+| Structured AI | Provider boundary + Pydantic |
+| Authentication | JWT + server-side RBAC |
+| Local runtime | Docker Compose |
 | CI | GitHub Actions |
 
-## Modelo de execução
-
-Uma execução típica percorre estados e etapas explícitos:
+## Execution model
 
 ```text
 TRIGGERED
@@ -84,19 +82,19 @@ PROCESSING
    │
    ├──► AI STRUCTURED STEP
    │          │
-   │          └── saída inválida ──► FAILED_VALIDATION
+   │          └── invalid output ──► FAILED_VALIDATION
    │
    ├──► CONNECTOR
    │          │
    │          ├── retry
-   │          └── falha terminal ──► DLQ
+   │          └── terminal failure ──► DLQ
    │
    ▼
 WAITING_APPROVAL
    │
-   ├── rejeitado ──► REJECTED
+   ├── rejected ──► REJECTED
    │
-   └── aprovado
+   └── approved
           │
           ▼
        RESUMED
@@ -105,92 +103,66 @@ WAITING_APPROVAL
        COMPLETED
 ```
 
-## Aprovação humana
+## Human approval
 
-Gates de aprovação são parte do contrato do workflow. Quando uma execução entra em `WAITING_APPROVAL`, o worker não avança até que um usuário com a permissão adequada registre uma decisão.
+When a run enters `WAITING_APPROVAL`, the worker does not continue until an authorized user records a decision. The decision, actor, reason and timestamp remain associated with the execution for auditing.
 
-A decisão, o responsável, o motivo e o momento da aprovação ou rejeição permanecem associados à execução para auditoria.
+## Structured AI
 
-## IA estruturada
+AI integration follows a provider boundary and requires structured responses. Output is validated before it is accepted by the engine. Contract-incompatible output ends in `FAILED_VALIDATION` instead of advancing silently.
 
-A integração com IA segue uma fronteira de provider e exige resposta estruturada. A saída é validada antes de ser aceita pelo engine.
+## Retry and DLQ
 
-Isso permite que o workflow trate IA como um componente assistivo e verificável, em vez de entregar a ela o controle do processo. Saídas incompatíveis com o contrato terminam em `FAILED_VALIDATION` e não avançam silenciosamente.
+Transient connector failures follow an explicit retry policy. When retries are exhausted, the run ends in `DLQ`. Reprocessing creates a new run linked through `parent_run_id`, preserving the original execution history.
 
-## Retry e DLQ
-
-Falhas transitórias de conectores seguem uma política explícita de novas tentativas. Quando a política é esgotada, a execução termina em `DLQ`.
-
-O reprocessamento cria uma nova execução relacionada por `parent_run_id`. A execução original permanece preservada, permitindo reconstruir o histórico completo do incidente e da recuperação.
-
-## Executar localmente
-
-### Pré-requisitos
-
-- Docker
-- Docker Compose
-
-### Inicialização
+## Run locally
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Serviços:
-
-- aplicação web: `http://localhost:3000`
-- documentação da API: `http://localhost:8000/docs`
+- Web: `http://localhost:3000`
+- API: `http://localhost:8000/docs`
 - RabbitMQ Management: `http://localhost:15672`
 
-O ambiente local inicializa banco, API, worker, mensageria e dados necessários para exercitar os fluxos da aplicação sem depender de serviços pagos.
-
-## Estrutura do repositório
+## Repository structure
 
 ```text
 apps/
 ├── api/
 │   ├── app/
-│   │   ├── contracts/   # JSON Schemas
-│   │   ├── engine.py    # execução dos workflows
-│   │   ├── worker.py    # consumidor RabbitMQ
+│   │   ├── contracts/
+│   │   ├── engine.py
+│   │   ├── worker.py
 │   │   └── ...
 │   └── tests/
-│
 └── web/
     └── src/
         └── app/
-
-docs/                   # arquitetura e decisões técnicas
-scripts/                # validações determinísticas
+docs/
+scripts/
 ```
 
-## Validação
-
-Validação estrutural e testes do backend:
+## Validation
 
 ```bash
 python scripts/validate_repo.py
 python -m unittest discover apps/api/tests -v
-```
-
-Frontend:
-
-```bash
 cd apps/web
 npm ci
 npm run typecheck
 npm run build
 ```
 
-O GitHub Actions executa validação estrutural, testes do backend, instalação determinística das dependências web, auditoria de segurança, typecheck e build.
+GitHub Actions runs repository validation, backend tests, deterministic web dependency installation, security auditing, typechecking and production builds.
 
-## Princípios do projeto
+## Project principles
 
-- **execução controlada:** nenhuma etapa crítica avança fora das regras do workflow;
-- **human-in-the-loop:** aprovações protegidas pertencem a pessoas autorizadas;
-- **contratos antes de automação:** entradas e saídas são validadas;
-- **IA verificável:** respostas estruturadas são tratadas como dados sujeitos a validação;
-- **recuperação explícita:** retries e DLQ fazem parte do modelo de execução;
-- **idempotência:** triggers externos não devem duplicar efeitos;
-- **auditabilidade:** eventos relevantes permanecem rastreáveis do início ao fim.
+- **controlled execution**;
+- **human-in-the-loop**;
+- **contracts before automation**;
+- **verifiable AI**;
+- **explicit recovery**;
+- **idempotency**;
+- **auditability**.
